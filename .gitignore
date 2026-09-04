@@ -1,0 +1,40 @@
+# Build outputs
+**/bin/
+**/obj/
+**/build/
+**/out/
+
+# Android build
+src/Android/**/build/
+src/Android/**/*.apk
+src/Android/**/*.aab
+src/Android/**/build.gradle.kts.local
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+.idea/
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Gradle
+src/Android/.gradle/
+src/Android/gradle/wrapper/dists/
+
+# Test screenshots (keep test report)
+test_screenshots/*.png
+!test_screenshots/detailed_test/

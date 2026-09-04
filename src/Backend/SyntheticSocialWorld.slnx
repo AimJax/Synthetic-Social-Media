@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SyntheticSocialWorld.Api/SyntheticSocialWorld.Api.csproj" />
+  <Project Path="SyntheticSocialWorld.Domain/SyntheticSocialWorld.Domain.csproj" />
+  <Project Path="SyntheticSocialWorld.Infrastructure/SyntheticSocialWorld.Infrastructure.csproj" />
+  <Project Path="SyntheticSocialWorld.Simulation/SyntheticSocialWorld.Simulation.csproj" />
+</Solution>
