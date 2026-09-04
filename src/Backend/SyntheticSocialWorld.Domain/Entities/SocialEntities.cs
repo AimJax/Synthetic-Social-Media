@@ -3,12 +3,26 @@ using System.ComponentModel.DataAnnotations;
 namespace SyntheticSocialWorld.Domain.Entities;
 
 /// <summary>
+/// Author types for social entities.
+/// </summary>
+public enum AuthorType
+{
+    NPC,
+    Player
+}
+
+/// <summary>
 /// A social media post created by an NPC or player.
 /// </summary>
 public class Post : BaseEntity
 {
     [Required]
     public string AuthorId { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Type of author (NPC or Player).
+    /// </summary>
+    public AuthorType AuthorType { get; set; } = AuthorType.NPC;
     
     /// <summary>
     /// Optional community this post was made in.
@@ -41,7 +55,8 @@ public class Post : BaseEntity
     public double Popularity { get; set; }
     
     // Navigation
-    public virtual NPC? Author { get; set; }
+    public virtual NPC? NpcAuthor { get; set; }
+    public virtual Player? PlayerAuthor { get; set; }
     public virtual Community? Community { get; set; }
     public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
 }
@@ -58,6 +73,11 @@ public class Comment : BaseEntity
     public string AuthorId { get; set; } = string.Empty;
     
     /// <summary>
+    /// Type of author (NPC or Player).
+    /// </summary>
+    public AuthorType AuthorType { get; set; } = AuthorType.NPC;
+    
+    /// <summary>
     /// Parent comment if this is a reply.
     /// </summary>
     public string? ParentCommentId { get; set; }
@@ -71,21 +91,32 @@ public class Comment : BaseEntity
     
     // Navigation
     public virtual Post? Post { get; set; }
-    public virtual NPC? Author { get; set; }
+    public virtual NPC? NpcAuthor { get; set; }
+    public virtual Player? PlayerAuthor { get; set; }
     public virtual Comment? ParentComment { get; set; }
     public virtual ICollection<Comment> Replies { get; set; } = new List<Comment>();
 }
 
 /// <summary>
-/// A direct message between two NPCs.
+/// A direct message between two entities (NPC or Player).
 /// </summary>
 public class Message : BaseEntity
 {
     [Required]
     public string SenderId { get; set; } = string.Empty;
     
+    /// <summary>
+    /// Type of sender (NPC or Player).
+    /// </summary>
+    public AuthorType SenderType { get; set; } = AuthorType.NPC;
+    
     [Required]
     public string RecipientId { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Type of recipient (NPC or Player).
+    /// </summary>
+    public AuthorType RecipientType { get; set; } = AuthorType.NPC;
     
     [Required]
     [MaxLength(2000)]
@@ -95,8 +126,10 @@ public class Message : BaseEntity
     public bool IsDeleted { get; set; }
     
     // Navigation
-    public virtual NPC? Sender { get; set; }
-    public virtual NPC? Recipient { get; set; }
+    public virtual NPC? NpcSender { get; set; }
+    public virtual Player? PlayerSender { get; set; }
+    public virtual NPC? NpcRecipient { get; set; }
+    public virtual Player? PlayerRecipient { get; set; }
 }
 
 /// <summary>
@@ -106,6 +139,11 @@ public class Notification : BaseEntity
 {
     [Required]
     public string RecipientId { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Type of recipient (NPC or Player).
+    /// </summary>
+    public AuthorType RecipientType { get; set; } = AuthorType.NPC;
     
     [Required]
     [MaxLength(50)]
@@ -132,5 +170,6 @@ public class Notification : BaseEntity
     public bool IsRead { get; set; }
     
     // Navigation
-    public virtual NPC? Recipient { get; set; }
+    public virtual NPC? NpcRecipient { get; set; }
+    public virtual Player? PlayerRecipient { get; set; }
 }

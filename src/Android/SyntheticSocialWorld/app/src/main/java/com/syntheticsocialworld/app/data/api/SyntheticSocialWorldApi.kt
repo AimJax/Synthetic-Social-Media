@@ -42,6 +42,39 @@ interface SyntheticSocialWorldApi {
     @GET("api/npcs/{id}/following")
     suspend fun getNPCFollowing(@Path("id") npcId: String): List<NPCSummaryDto>
     
+    // Player (Current User)
+    @GET("api/player/me")
+    suspend fun getCurrentPlayer(
+        @Header("X-Player-Id") playerId: String
+    ): PlayerDto
+    
+    @GET("api/player/exists")
+    suspend fun checkPlayerExists(
+        @Header("X-Player-Id") playerId: String?
+    ): PlayerExistsResponse
+    
+    @POST("api/player")
+    suspend fun createPlayer(@Body request: CreatePlayerRequest): PlayerDto
+    
+    @PUT("api/player/me")
+    suspend fun updatePlayer(
+        @Header("X-Player-Id") playerId: String,
+        @Body request: UpdatePlayerRequest
+    ): PlayerDto
+    
+    @GET("api/player/me/posts")
+    suspend fun getMyPosts(
+        @Header("X-Player-Id") playerId: String,
+        @Query("limit") limit: Int = 20,
+        @Query("offset") offset: Int = 0
+    ): List<PlayerPostDto>
+    
+    @POST("api/player/me/posts")
+    suspend fun createPlayerPost(
+        @Header("X-Player-Id") playerId: String,
+        @Body request: CreatePlayerPostRequest
+    ): PlayerPostDto
+    
     // Posts
     @GET("api/posts")
     suspend fun getRecentPosts(

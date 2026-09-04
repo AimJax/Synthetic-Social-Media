@@ -58,7 +58,6 @@ public class SearchController : ControllerBase
             var postsQuery = await _context.Posts
                 .Where(p => !p.IsDeleted && p.Content.ToLower().Contains(searchTerm))
                 .Take(limit * 2) // Take more since we filter in memory
-                .Include(p => p.Author)
                 .ToListAsync();
             
             results.Posts = postsQuery
@@ -69,8 +68,8 @@ public class SearchController : ControllerBase
                     Id = p.Id,
                     Content = p.Content,
                     AuthorId = p.AuthorId,
-                    AuthorName = p.Author?.DisplayName ?? "Unknown",
-                    AuthorHandle = p.Author?.Handle ?? "unknown",
+                    AuthorName = "Unknown",
+                    AuthorHandle = "unknown",
                     LikeCount = p.LikeCount,
                     CommentCount = p.CommentCount,
                     CreatedAt = p.CreatedAt.ToString("O")

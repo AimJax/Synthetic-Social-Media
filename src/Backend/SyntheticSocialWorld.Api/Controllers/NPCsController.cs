@@ -163,7 +163,6 @@ public class NPCsController : ControllerBase
             .Where(p => p.AuthorId == id && !p.IsDeleted)
             .Skip(offset)
             .Take(limit)
-            .Include(p => p.Author)
             .ToListAsync();
 
         // Order on client side
@@ -173,7 +172,7 @@ public class NPCsController : ControllerBase
         {
             Id = p.Id,
             AuthorId = p.AuthorId,
-            AuthorName = p.Author?.DisplayName ?? "Unknown",
+            AuthorName = "Unknown",
             Content = p.Content,
             LikeCount = p.LikeCount,
             CommentCount = p.CommentCount,

@@ -282,3 +282,56 @@ data class ConversationDto(
     val threadId: String,
     val messages: List<MessageDto>
 )
+
+// Player models (for the human user)
+data class PlayerDto(
+    val id: String,
+    val handle: String,
+    val displayName: String,
+    val bio: String?,
+    val avatarUrl: String?,
+    val followerCount: Int,
+    val followingCount: Int,
+    val reputation: Double,
+    val createdAt: String,
+    val lastActiveAt: String,
+    val interests: List<String>,
+    val postCount: Int,
+    val unreadNotificationCount: Int = 0
+)
+
+data class PlayerExistsResponse(
+    val exists: Boolean
+)
+
+data class CreatePlayerRequest(
+    val displayName: String,
+    val handle: String,
+    val bio: String? = null,
+    val avatarUrl: String? = null,
+    val interests: List<String>? = null
+)
+
+data class UpdatePlayerRequest(
+    val displayName: String? = null,
+    val bio: String? = null,
+    val avatarUrl: String? = null,
+    val interests: List<String>? = null
+)
+
+data class PlayerPostDto(
+    val id: String,
+    val content: String,
+    val authorId: String,
+    val authorName: String,
+    val authorHandle: String,
+    val likeCount: Int,
+    val commentCount: Int,
+    val createdAt: String,
+    val authorType: String
+)
+
+data class CreatePlayerPostRequest(
+    val content: String,
+    val communityId: String? = null
+)

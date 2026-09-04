@@ -311,7 +311,6 @@ public class FeedRepository : IFeedRepository
     public async Task<IEnumerable<Post>> GetFeedForNpcAsync(string npcId, int limit = 20, string? cursor = null)
     {
         var query = _context.Posts
-            .Include(p => p.Author)
             .Include(p => p.Community)
             .Where(p => !p.IsDeleted);
 
@@ -334,7 +333,6 @@ public class FeedRepository : IFeedRepository
     public async Task<IEnumerable<Post>> GetTrendingPostsAsync(int count)
     {
         return await _context.Posts
-            .Include(p => p.Author)
             .Where(p => !p.IsDeleted)
             .OrderByDescending(p => p.LikeCount + p.CommentCount + p.ShareCount)
             .Take(count)
@@ -350,7 +348,6 @@ public class FeedRepository : IFeedRepository
             .ToListAsync();
 
         return await _context.Posts
-            .Include(p => p.Author)
             .Where(p => !p.IsDeleted && !followingIds.Contains(p.AuthorId) && p.AuthorId != npcId)
             .OrderByDescending(p => p.Popularity)
             .ThenByDescending(p => p.CreatedAt)

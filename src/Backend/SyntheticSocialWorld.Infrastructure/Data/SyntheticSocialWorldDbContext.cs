@@ -16,6 +16,8 @@ public class SyntheticSocialWorldDbContext : DbContext
     // Core entities
     public DbSet<World> Worlds => Set<World>();
     public DbSet<NPC> NPCs => Set<NPC>();
+    public DbSet<Player> Players => Set<Player>();
+    public DbSet<PlayerInterest> PlayerInterests => Set<PlayerInterest>();
     public DbSet<Personality> NPCPersonalities => Set<Personality>();
     public DbSet<Mood> NPCMoods => Set<Mood>();
     public DbSet<Interest> NPCInterests => Set<Interest>();
@@ -61,6 +63,29 @@ public class SyntheticSocialWorldDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.CurrentTime).IsRequired();
+        });
+
+        // Player
+        modelBuilder.Entity<Player>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Handle).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.DisplayName).IsRequired().HasMaxLength(100);
+            entity.HasIndex(e => e.Handle).IsUnique();
+            entity.HasIndex(e => e.WorldId);
+            entity.HasIndex(e => e.LastActiveAt);
+
+            entity.HasOne(e => e.World)
+                  .WithMany(w => w.Players)
+                  .HasForeignKey(e => e.WorldId);
+        });
+
+        // PlayerInterest
+        modelBuilder.Entity<PlayerInterest>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.PlayerId, e.Topic }).IsUnique();
+            entity.Property(e => e.Topic).IsRequired().HasMaxLength(100);
         });
 
         // NPC
@@ -127,9 +152,11 @@ public class SyntheticSocialWorldDbContext : DbContext
             entity.HasIndex(e => e.CreatedAt);
             entity.HasIndex(e => e.ImportanceScore);
 
-            entity.HasOne(e => e.Author)
+            entity.HasOne(e => e.NpcAuthor)
                   .WithMany(n => n.Posts)
-                  .HasForeignKey(e => e.AuthorId);
+                  .HasForeignKey(e => e.AuthorId)
+                  .HasPrincipalKey(n => n.Id)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Comment
@@ -145,9 +172,11 @@ public class SyntheticSocialWorldDbContext : DbContext
                   .WithMany(p => p.Comments)
                   .HasForeignKey(e => e.PostId);
 
-            entity.HasOne(e => e.Author)
+            entity.HasOne(e => e.NpcAuthor)
                   .WithMany(n => n.Comments)
-                  .HasForeignKey(e => e.AuthorId);
+                  .HasForeignKey(e => e.AuthorId)
+                  .HasPrincipalKey(n => n.Id)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Message
@@ -159,13 +188,17 @@ public class SyntheticSocialWorldDbContext : DbContext
             entity.HasIndex(e => e.RecipientId);
             entity.HasIndex(e => e.CreatedAt);
 
-            entity.HasOne(e => e.Sender)
+            entity.HasOne(e => e.NpcSender)
                   .WithMany(n => n.SentMessages)
-                  .HasForeignKey(e => e.SenderId);
+                  .HasForeignKey(e => e.SenderId)
+                  .HasPrincipalKey(n => n.Id)
+                  .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasOne(e => e.Recipient)
+            entity.HasOne(e => e.NpcRecipient)
                   .WithMany(n => n.ReceivedMessages)
-                  .HasForeignKey(e => e.RecipientId);
+                  .HasForeignKey(e => e.RecipientId)
+                  .HasPrincipalKey(n => n.Id)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Notification
@@ -177,6 +210,12 @@ public class SyntheticSocialWorldDbContext : DbContext
             entity.HasIndex(e => e.RecipientId);
             entity.HasIndex(e => e.IsRead);
             entity.HasIndex(e => e.CreatedAt);
+
+            entity.HasOne(e => e.NpcRecipient)
+                  .WithMany(n => n.Notifications)
+                  .HasForeignKey(e => e.RecipientId)
+                  .HasPrincipalKey(n => n.Id)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Community

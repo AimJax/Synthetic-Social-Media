@@ -50,7 +50,7 @@ public class FeedRankingService
         score += CalculateEngagementScore(post) * EngagementWeight;
 
         // 5. Author Popularity Score (0.10 weight)
-        score += CalculatePopularityScore(post.Author) * PopularityWeight;
+        score += CalculatePopularityScore(post.AuthorId, context) * PopularityWeight;
 
         // 6. Controversy Score (0.05 weight)
         score += CalculateControversyScore(post) * ControversyWeight;
@@ -163,16 +163,16 @@ public class FeedRankingService
     /// Calculate author popularity using logarithmic scale
     /// Prevents mega-influencers from dominating
     /// </summary>
-    private double CalculatePopularityScore(NPC? author)
+    private double CalculatePopularityScore(string authorId, PlayerFeedContext context)
     {
-        if (author == null)
-            return 0.0;
-        
-        // Logarithmic scale: log10(popularity + 1) / 3
-        // This means popularity of 999 becomes ~3.0, normalized to 0-1
-        var rawScore = Math.Log10(author.Popularity + 1) / 3.0;
-        
-        return Math.Clamp(rawScore, 0.0, 1.0);
+        if (context.AuthorPopularity.TryGetValue(authorId, out var popularity))
+        {
+            // Logarithmic scale: log10(popularity + 1) / 3
+            // This means popularity of 999 becomes ~3.0, normalized to 0-1
+            var rawScore = Math.Log10(popularity + 1) / 3.0;
+            return Math.Clamp(rawScore, 0.0, 1.0);
+        }
+        return 0.0;
     }
 
     /// <summary>
@@ -328,6 +328,12 @@ public class PlayerFeedContext
     /// Key: NPC ID, Value: List of interests
     /// </summary>
     public Dictionary<string, List<AuthorInterest>> AuthorInterests { get; set; } = new();
+    
+    /// <summary>
+    /// Author popularity scores for feed ranking
+    /// Key: Author ID, Value: Popularity score
+    /// </summary>
+    public Dictionary<string, double> AuthorPopularity { get; set; } = new();
     
     /// <summary>
     /// Communities the player is a member of

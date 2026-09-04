@@ -17,7 +17,6 @@ public class PostRepository : IPostRepository
     public async Task<Post?> GetByIdAsync(string id)
     {
         return await _context.Posts
-            .Include(p => p.Author)
             .Include(p => p.Community)
             .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
     }
@@ -28,7 +27,6 @@ public class PostRepository : IPostRepository
         var posts = await _context.Posts
             .Where(p => p.AuthorId == authorId && !p.IsDeleted)
             .Take((limit + offset) * 2)
-            .Include(p => p.Author)
             .ToListAsync();
         
         return posts
@@ -44,7 +42,6 @@ public class PostRepository : IPostRepository
         var posts = await _context.Posts
             .Where(p => p.CommunityId == communityId && !p.IsDeleted)
             .Take((limit + offset) * 2)
-            .Include(p => p.Author)
             .ToListAsync();
         
         return posts
@@ -60,7 +57,6 @@ public class PostRepository : IPostRepository
         var posts = await _context.Posts
             .Where(p => !p.IsDeleted)
             .Take(count * 2)
-            .Include(p => p.Author)
             .ToListAsync();
         
         return posts

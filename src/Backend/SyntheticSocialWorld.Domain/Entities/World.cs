@@ -34,5 +34,6 @@ public class World : BaseEntity
     
     // Navigation properties
     public virtual ICollection<NPC> NPCs { get; set; } = new List<NPC>();
+    public virtual ICollection<Player> Players { get; set; } = new List<Player>();
     public virtual ICollection<Community> Communities { get; set; } = new List<Community>();
 }

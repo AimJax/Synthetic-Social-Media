@@ -11,6 +11,11 @@ public class CatchupSummaryService
     private readonly Random _random = new();
     
     /// <summary>
+    /// Function to get author name by ID. Set during GenerateSummary call.
+    /// </summary>
+    private Func<string, string> GetAuthorName = id => "Someone";
+    
+    /// <summary>
     /// Generate a comprehensive summary of what happened while the player was away
     /// </summary>
     public CatchupSummary GenerateSummary(
@@ -22,8 +27,12 @@ public class CatchupSummaryService
         IEnumerable<Follow> newFollows,
         IEnumerable<NPCRelationship> relationshipChanges,
         IEnumerable<Rumor> activeRumors,
-        IEnumerable<Event> upcomingEvents)
+        IEnumerable<Event> upcomingEvents,
+        Func<string, string>? getAuthorName = null)
     {
+        // Default implementation if none provided
+        GetAuthorName = getAuthorName ?? (id => "Someone");
+        
         var summary = new CatchupSummary
         {
             PlayerId = playerId,
@@ -37,7 +46,7 @@ public class CatchupSummaryService
         // 1. Posts from followed NPCs
         foreach (var post in newPosts.Take(10))
         {
-            summary.PostSummaries.Add(GeneratePostSummary(post));
+            summary.PostSummaries.Add(GeneratePostSummary(post, GetAuthorName));
         }
         
         // 2. Comments on player's posts
@@ -45,7 +54,7 @@ public class CatchupSummaryService
         var relevantComments = newComments.Where(c => playerPostIds.Contains(c.PostId));
         foreach (var comment in relevantComments.Take(5))
         {
-            summary.CommentNotifications.Add(GenerateCommentSummary(comment));
+            summary.CommentNotifications.Add(GenerateCommentSummary(comment, GetAuthorName));
         }
         
         // 3. Follower changes
@@ -116,13 +125,13 @@ public class CatchupSummaryService
     /// <summary>
     /// Generate a brief summary for a single post
     /// </summary>
-    private PostSummary GeneratePostSummary(Post post)
+    private PostSummary GeneratePostSummary(Post post, Func<string, string> getAuthorName)
     {
         return new PostSummary
         {
             PostId = post.Id,
             AuthorId = post.AuthorId,
-            AuthorName = post.Author?.DisplayName ?? "Someone",
+            AuthorName = getAuthorName(post.AuthorId),
             Preview = TruncateContent(post.Content, 100),
             Engagement = post.LikeCount + post.CommentCount,
             TimeAgo = FormatTimeAgo(post.CreatedAt)
@@ -132,14 +141,14 @@ public class CatchupSummaryService
     /// <summary>
     /// Generate notification for a comment
     /// </summary>
-    private CommentNotification GenerateCommentSummary(Comment comment)
+    private CommentNotification GenerateCommentSummary(Comment comment, Func<string, string> getAuthorName)
     {
         return new CommentNotification
         {
             CommentId = comment.Id,
             PostId = comment.PostId,
             AuthorId = comment.AuthorId,
-            AuthorName = comment.Author?.DisplayName ?? "Someone",
+            AuthorName = getAuthorName(comment.AuthorId),
             Content = TruncateContent(comment.Content, 80),
             TimeAgo = FormatTimeAgo(comment.CreatedAt)
         };

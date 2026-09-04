@@ -64,9 +64,9 @@ public class FeedController : ControllerBase
             {
                 Id = p.Id,
                 AuthorId = p.AuthorId,
-                AuthorName = p.Author?.DisplayName ?? "Unknown",
-                AuthorHandle = p.Author?.Handle ?? "",
-                AuthorPopularity = p.Author?.Popularity ?? 0,
+                AuthorName = "Unknown",
+                AuthorHandle = "",
+                AuthorPopularity = 0,
                 Content = p.Content,
                 LikeCount = p.LikeCount,
                 DislikeCount = p.DislikeCount,
@@ -99,7 +99,6 @@ public class FeedController : ControllerBase
         
         // Fetch all posts first, then filter and order in memory
         var allPosts = await _context.Posts
-            .Include(p => p.Author)
             .Include(p => p.Community)
             .Take(200)
             .ToListAsync();
@@ -115,9 +114,9 @@ public class FeedController : ControllerBase
         {
             Id = p.Id,
             AuthorId = p.AuthorId,
-            AuthorName = p.Author?.DisplayName ?? "Unknown",
-            AuthorHandle = p.Author?.Handle ?? "",
-            AuthorPopularity = p.Author?.Popularity ?? 0,
+            AuthorName = "Unknown",
+            AuthorHandle = "",
+            AuthorPopularity = 0,
             Content = p.Content,
             LikeCount = p.LikeCount,
             DislikeCount = p.DislikeCount,
@@ -147,7 +146,6 @@ public class FeedController : ControllerBase
 
         // Fetch all posts first, then filter and order in memory
         var allPosts = await _context.Posts
-            .Include(p => p.Author)
             .Include(p => p.Community)
             .Take(200)
             .ToListAsync();
@@ -166,9 +164,9 @@ public class FeedController : ControllerBase
         {
             Id = p.Id,
             AuthorId = p.AuthorId,
-            AuthorName = p.Author?.DisplayName ?? "Unknown",
-            AuthorHandle = p.Author?.Handle ?? "",
-            AuthorPopularity = p.Author?.Popularity ?? 0,
+            AuthorName = "Unknown",
+            AuthorHandle = "",
+            AuthorPopularity = 0,
             Content = p.Content,
             LikeCount = p.LikeCount,
             DislikeCount = p.DislikeCount,
@@ -204,7 +202,6 @@ public class FeedController : ControllerBase
         [FromQuery] int limit = 20)
     {
         var posts = await _context.Posts
-            .Include(p => p.Author)
             .Include(p => p.Community)
             .Where(p => !p.IsDeleted && p.CommunityId == communityId)
             .OrderByDescending(p => p.CreatedAt)
@@ -215,9 +212,9 @@ public class FeedController : ControllerBase
         {
             Id = p.Id,
             AuthorId = p.AuthorId,
-            AuthorName = p.Author?.DisplayName ?? "Unknown",
-            AuthorHandle = p.Author?.Handle ?? "",
-            AuthorPopularity = p.Author?.Popularity ?? 0,
+            AuthorName = "Unknown",
+            AuthorHandle = "",
+            AuthorPopularity = 0,
             Content = p.Content,
             LikeCount = p.LikeCount,
             DislikeCount = p.DislikeCount,
@@ -348,7 +345,6 @@ public class FeedController : ControllerBase
 
         // Fetch all posts and filter in memory (SQLite limitations with Contains)
         var allPosts = await _context.Posts
-            .Include(p => p.Author)
             .Include(p => p.Community)
             .Where(p => !p.IsDeleted)
             .ToListAsync();

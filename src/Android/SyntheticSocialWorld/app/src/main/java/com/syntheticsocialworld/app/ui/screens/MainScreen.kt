@@ -216,15 +216,11 @@ class MainViewModel @Inject constructor(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
+    currentPlayer: com.syntheticsocialworld.app.data.model.PlayerDto? = null,
+    onLogout: (() -> Unit)? = null,
     viewModel: MainViewModel = hiltViewModel()
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    
-    // Show onboarding for first-time users
-    if (!viewModel.hasSeenOnboarding) {
-        OnboardingScreen(onComplete = { viewModel.completeOnboarding() })
-        return
-    }
     
     Scaffold(
         topBar = {
