@@ -168,8 +168,6 @@ public class Notification : BaseEntity
     public string? RelatedEntityType { get; set; }
     
     public bool IsRead { get; set; }
-    
-    // Navigation
-    public virtual NPC? NpcRecipient { get; set; }
-    public virtual Player? PlayerRecipient { get; set; }
 }
+
+

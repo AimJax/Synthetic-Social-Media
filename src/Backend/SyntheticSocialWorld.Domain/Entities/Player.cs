@@ -27,11 +27,6 @@ public class Player : BaseEntity
     public string WorldId { get; set; } = string.Empty;
     
     /// <summary>
-    /// When the player was created.
-    /// </summary>
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-    
-    /// <summary>
     /// Last time the player was active.
     /// </summary>
     public DateTimeOffset LastActiveAt { get; set; } = DateTimeOffset.UtcNow;
@@ -62,7 +57,6 @@ public class Player : BaseEntity
     public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
     public virtual ICollection<Message> SentMessages { get; set; } = new List<Message>();
     public virtual ICollection<Message> ReceivedMessages { get; set; } = new List<Message>();
-    public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public virtual ICollection<PlayerInterest> Interests { get; set; } = new List<PlayerInterest>();
 }
 

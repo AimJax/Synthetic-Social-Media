@@ -78,6 +78,12 @@ public class SyntheticSocialWorldDbContext : DbContext
             entity.HasOne(e => e.World)
                   .WithMany(w => w.Players)
                   .HasForeignKey(e => e.WorldId);
+            
+            // Player's social content is tracked via AuthorType on entities, not via navigation
+            entity.Ignore(e => e.Posts);
+            entity.Ignore(e => e.Comments);
+            entity.Ignore(e => e.SentMessages);
+            entity.Ignore(e => e.ReceivedMessages);
         });
 
         // PlayerInterest
@@ -157,6 +163,9 @@ public class SyntheticSocialWorldDbContext : DbContext
                   .HasForeignKey(e => e.AuthorId)
                   .HasPrincipalKey(n => n.Id)
                   .OnDelete(DeleteBehavior.Restrict);
+            
+            // Player posts are tracked by AuthorType, not via navigation
+            entity.Ignore(e => e.PlayerAuthor);
         });
 
         // Comment
@@ -177,6 +186,9 @@ public class SyntheticSocialWorldDbContext : DbContext
                   .HasForeignKey(e => e.AuthorId)
                   .HasPrincipalKey(n => n.Id)
                   .OnDelete(DeleteBehavior.Restrict);
+            
+            // Player comments are tracked by AuthorType, not via navigation
+            entity.Ignore(e => e.PlayerAuthor);
         });
 
         // Message
@@ -199,6 +211,10 @@ public class SyntheticSocialWorldDbContext : DbContext
                   .HasForeignKey(e => e.RecipientId)
                   .HasPrincipalKey(n => n.Id)
                   .OnDelete(DeleteBehavior.Restrict);
+            
+            // Player messages are tracked by SenderType/RecipientType, not via navigation
+            entity.Ignore(e => e.PlayerSender);
+            entity.Ignore(e => e.PlayerRecipient);
         });
 
         // Notification
@@ -210,12 +226,6 @@ public class SyntheticSocialWorldDbContext : DbContext
             entity.HasIndex(e => e.RecipientId);
             entity.HasIndex(e => e.IsRead);
             entity.HasIndex(e => e.CreatedAt);
-
-            entity.HasOne(e => e.NpcRecipient)
-                  .WithMany(n => n.Notifications)
-                  .HasForeignKey(e => e.RecipientId)
-                  .HasPrincipalKey(n => n.Id)
-                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Community
