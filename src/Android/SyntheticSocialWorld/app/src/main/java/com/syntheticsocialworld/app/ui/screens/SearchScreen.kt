@@ -94,9 +94,9 @@ enum class SearchFilter(val label: String, val apiFilter: String?) {
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel(),
-    onNpcClick: (NPCDto) -> Unit = {},
-    onPostClick: (PostDto) -> Unit = {},
-    onCommunityClick: (CommunityDto) -> Unit = {}
+    onNpcClick: (NPCSearchResult) -> Unit = {},
+    onPostClick: (PostSearchResult) -> Unit = {},
+    onCommunityClick: (CommunitySearchResult) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -293,7 +293,7 @@ fun SearchScreen(
 
 @Composable
 fun SearchNPCCard(
-    npc: NPCDto,
+    npc: NPCSearchResult,
     onClick: () -> Unit,
     onFollow: () -> Unit
 ) {
@@ -329,13 +329,7 @@ fun SearchNPCCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    npc.mood?.let { mood ->
-                        Text(
-                            text = mood.primaryMood,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    // Note: NPCSearchResult doesn't have mood field
                 }
             }
             OutlinedButton(onClick = onFollow) {
@@ -349,7 +343,7 @@ fun SearchNPCCard(
 
 @Composable
 fun SearchPostCard(
-    post: PostDto,
+    post: PostSearchResult,
     onClick: () -> Unit
 ) {
     Card(

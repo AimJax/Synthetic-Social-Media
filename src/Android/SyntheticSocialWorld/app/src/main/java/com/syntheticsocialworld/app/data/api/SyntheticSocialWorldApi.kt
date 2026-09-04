@@ -137,6 +137,11 @@ interface SyntheticSocialWorldApi {
     @GET("api/simulation/stats")
     suspend fun getSimulationStats(): SimulationStatsDto
     
+    @GET("api/communities")
+    suspend fun getCommunities(
+        @Query("limit") limit: Int = 20
+    ): List<CommunityDto>
+    
     @PUT("api/simulation/world/pause")
     suspend fun togglePause(@Body request: Map<String, Boolean>): Map<String, Boolean>
     

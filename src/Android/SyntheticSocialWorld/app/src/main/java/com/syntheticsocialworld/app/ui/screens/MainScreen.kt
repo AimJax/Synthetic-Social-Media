@@ -1,8 +1,12 @@
 package com.syntheticsocialworld.app.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.*
@@ -10,7 +14,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -41,9 +52,17 @@ class MainViewModel @Inject constructor(
         private set
     var selectedNpc by mutableStateOf<NPCDto?>(null)
         private set
+    var hasSeenOnboarding by mutableStateOf(false)
+        private set
+    var unreadNotifications by mutableStateOf(0)
+        private set
     
     init {
         loadInitialData()
+    }
+    
+    fun completeOnboarding() {
+        hasSeenOnboarding = true
     }
     
     fun loadInitialData() {
@@ -63,15 +82,32 @@ class MainViewModel @Inject constructor(
                 
                 // Load feed for first NPC if available
                 if (npcs.isNotEmpty()) {
-                    selectedNpc = npcs.first()
-                    feed = api.getFeed(npcs.first().id, limit = 20)
+                    if (selectedNpc == null) {
+                        selectedNpc = npcs.first()
+                    }
+                    selectedNpc?.let { npc ->
+                        feed = api.getFeed(npc.id, limit = 20)
+                    }
                 }
                 
             } catch (e: Exception) {
-                error = e.message ?: "Failed to load data"
+                error = getFriendlyErrorMessage(e)
             } finally {
                 isLoading = false
             }
+        }
+    }
+    
+    private fun getFriendlyErrorMessage(e: Exception): String {
+        val message = e.message ?: ""
+        return when {
+            message.contains("Unable to resolve host") -> 
+                "Can't connect to server. Make sure the app is running."
+            message.contains("timeout") -> 
+                "Connection timed out. Please try again."
+            message.contains("network") -> 
+                "Network error. Check your connection."
+            else -> "Something went wrong. Pull down to refresh."
         }
     }
     
@@ -83,7 +119,7 @@ class MainViewModel @Inject constructor(
                     feed = api.getFeed(npc.id, limit = 20)
                 }
             } catch (e: Exception) {
-                error = e.message
+                error = getFriendlyErrorMessage(e)
             } finally {
                 isLoading = false
             }
@@ -95,7 +131,7 @@ class MainViewModel @Inject constructor(
             try {
                 posts = api.getTrendingPosts(limit = 20)
             } catch (e: Exception) {
-                error = e.message
+                error = getFriendlyErrorMessage(e)
             }
         }
     }
@@ -113,7 +149,7 @@ class MainViewModel @Inject constructor(
                     refreshFeed()
                 }
             } catch (e: Exception) {
-                error = e.message
+                error = getFriendlyErrorMessage(e)
             }
         }
     }
@@ -126,7 +162,7 @@ class MainViewModel @Inject constructor(
                     refreshFeed()
                 }
             } catch (e: Exception) {
-                error = e.message
+                error = getFriendlyErrorMessage(e)
             }
         }
     }
@@ -139,7 +175,7 @@ class MainViewModel @Inject constructor(
                     loadInitialData()
                 }
             } catch (e: Exception) {
-                error = e.message
+                error = getFriendlyErrorMessage(e)
             }
         }
     }
@@ -153,7 +189,7 @@ class MainViewModel @Inject constructor(
                     stats = api.getSimulationStats()
                 }
             } catch (e: Exception) {
-                error = e.message
+                error = getFriendlyErrorMessage(e)
             }
         }
     }
@@ -165,11 +201,17 @@ class MainViewModel @Inject constructor(
                 world = api.getWorld()
                 stats = api.getSimulationStats()
             } catch (e: Exception) {
-                error = e.message
+                error = getFriendlyErrorMessage(e)
             }
         }
     }
+    
+    fun dismissError() {
+        error = null
+    }
 }
+
+// ============== MAIN SCREEN ==============
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -178,17 +220,43 @@ fun MainScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     
+    // Show onboarding for first-time users
+    if (!viewModel.hasSeenOnboarding) {
+        OnboardingScreen(onComplete = { viewModel.completeOnboarding() })
+        return
+    }
+    
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Synthetic Social World") },
+                title = { 
+                    Text(
+                        text = when (selectedTab) {
+                            0 -> "Home"
+                            1 -> "Explore"
+                            2 -> "Create"
+                            3 -> "Messages"
+                            4 -> "Profile"
+                            else -> "App"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
                 actions = {
-                    IconButton(onClick = { viewModel.loadInitialData() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    // Notifications badge
+                    BadgedBox(
+                        badge = {
+                            if (viewModel.unreadNotifications > 0) {
+                                Badge { Text("${viewModel.unreadNotifications}") }
+                            }
+                        }
+                    ) {
+                        IconButton(onClick = { /* Open notifications */ }) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                        }
                     }
                 }
             )
@@ -228,7 +296,7 @@ fun MainScreen(
             }
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
@@ -240,122 +308,478 @@ fun MainScreen(
                 3 -> MessagesScreen(viewModel)
                 4 -> ProfileScreen(viewModel)
             }
+            
+            // Global error snackbar
+            viewModel.error?.let { error ->
+                Snackbar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                    action = {
+                        TextButton(onClick = { viewModel.dismissError() }) {
+                            Text("Dismiss")
+                        }
+                    }
+                ) {
+                    Text(error)
+                }
+            }
         }
     }
 }
 
+// ============== ONBOARDING SCREEN ==============
+
+@Composable
+fun OnboardingScreen(onComplete: () -> Unit) {
+    val pages = listOf(
+        OnboardingPage(
+            title = "Welcome to your new social world",
+            description = "You've entered a living, breathing social network. The people here have their own lives, relationships, and stories.",
+            image = Icons.Default.Groups
+        ),
+        OnboardingPage(
+            title = "Meet interesting people",
+            description = "Each person has their own personality, interests, and mood. Follow them, message them, and see what they're up to.",
+            image = Icons.Default.PersonSearch
+        ),
+        OnboardingPage(
+            title = "Share your thoughts",
+            description = "Post updates, like content, and join conversations. The more you interact, the more the world responds.",
+            image = Icons.Default.Edit
+        ),
+        OnboardingPage(
+            title = "Watch the world evolve",
+            description = "Over time, you'll see relationships form, trends emerge, and the community grow. Come back to see what's new!",
+            image = Icons.Default.AutoAwesome
+        )
+    )
+    
+    var currentPage by remember { mutableIntStateOf(0) }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Page content
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            OnboardingPageContent(pages[currentPage])
+        }
+        
+        // Page indicators
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(vertical = 24.dp)
+        ) {
+            repeat(pages.size) { index ->
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .size(if (index == currentPage) 12.dp else 8.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (index == currentPage) 
+                                MaterialTheme.colorScheme.primary 
+                            else 
+                                MaterialTheme.colorScheme.outlineVariant
+                        )
+                )
+            }
+        }
+        
+        // Navigation buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Back button (only show if not on first page)
+            if (currentPage > 0) {
+                OutlinedButton(
+                    onClick = { currentPage-- },
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    shape = RoundedCornerShape(28.dp)
+                ) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                }
+            }
+            
+            // Main action button
+            Button(
+                onClick = {
+                    if (currentPage == pages.size - 1) {
+                        onComplete()
+                    } else {
+                        currentPage++
+                    }
+                },
+                modifier = Modifier
+                    .weight(if (currentPage > 0) 2f else 1f)
+                    .height(56.dp),
+                shape = RoundedCornerShape(28.dp)
+            ) {
+                Text(
+                    text = if (currentPage == pages.size - 1) "Get Started" else "Continue",
+                    fontSize = 16.sp
+                )
+                if (currentPage < pages.size - 1) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Default.ArrowForward, contentDescription = null)
+                }
+            }
+        }
+        
+        // Skip button
+        if (currentPage < pages.size - 1) {
+            TextButton(onClick = onComplete) {
+                Text("Skip onboarding")
+            }
+        }
+    }
+}
+
+data class OnboardingPage(
+    val title: String,
+    val description: String,
+    val image: androidx.compose.ui.graphics.vector.ImageVector
+)
+
+@Composable
+fun OnboardingPageContent(page: OnboardingPage) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = page.image,
+            contentDescription = null,
+            modifier = Modifier.size(120.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        
+        Spacer(modifier = Modifier.height(48.dp))
+        
+        Text(
+            text = page.title,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = page.description,
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 24.dp)
+        )
+    }
+}
+
+// ============== HOME FEED ==============
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeFeed(viewModel: MainViewModel) {
     val isLoading = viewModel.isLoading
     val feed = viewModel.feed
     val selectedNpc = viewModel.selectedNpc
-    val error = viewModel.error
     
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Current user info
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isLoading && feed.isEmpty()) {
+            // Initial loading state
+            LoadingContent()
+        } else if (feed.isEmpty()) {
+            // Empty state
+            EmptyFeedState(
+                onCreatePost = { /* Switch to create tab */ },
+                onExplore = { /* Switch to explore tab */ }
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                // User context card
+                item {
+                    UserContextCard(npc = selectedNpc)
+                }
+                
+                // Section header
+                item {
                     Text(
-                        text = "Logged in as: ${selectedNpc?.displayName ?: "Loading..."}",
-                        style = MaterialTheme.typography.titleMedium
+                        text = "Latest from people you follow",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = "@${selectedNpc?.handle ?: ""}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    selectedNpc?.mood?.let { mood ->
-                        Text(
-                            text = "Mood: ${mood.primaryMood} (${String.format("%.0f", mood.happiness * 100)}% happiness)",
-                            style = MaterialTheme.typography.bodySmall
+                }
+                
+                // Feed posts
+                items(feed, key = { it.id }) { post ->
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = fadeIn() + slideInVertically()
+                    ) {
+                        PostCard(
+                            post = post,
+                            onLike = { viewModel.likePost(post.id) }
                         )
+                    }
+                }
+                
+                // Pull to refresh indicator
+                item {
+                    if (isLoading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        }
                     }
                 }
             }
         }
-        
-        // Error message
-        error?.let { err ->
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    Text(
-                        text = "Error: $err",
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-            }
-        }
-        
-        // Loading
-        if (isLoading) {
-            item {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-        }
-        
-        // Feed posts
-        item {
-            Text(
-                text = "Your Feed",
-                style = MaterialTheme.typography.headlineSmall
-            )
-        }
-        
-        if (feed.isEmpty() && !isLoading) {
-            item {
+    }
+}
+
+@Composable
+fun UserContextCard(npc: NPCDto?) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Avatar placeholder
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = "No posts yet. Follow some NPCs or create a post!",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = npc?.displayName?.firstOrNull()?.uppercase() ?: "?",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold
                 )
             }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Posting as",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = npc?.displayName ?: "Loading...",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            
+            // Mood indicator
+            npc?.mood?.let { mood ->
+                MoodBadge(mood = mood.primaryMood)
+            }
         }
-        
-        items(feed) { post ->
-            PostCard(
-                post = post,
-                onLike = { viewModel.likePost(post.id) }
+    }
+}
+
+@Composable
+fun MoodBadge(mood: String) {
+    val (emoji, color) = when (mood.lowercase()) {
+        "happy", "excited" -> "😊" to Color(0xFF4CAF50)
+        "sad" -> "😢" to Color(0xFF2196F3)
+        "angry" -> "😠" to Color(0xFFF44336)
+        "anxious", "worried" -> "😰" to Color(0xFFFF9800)
+        else -> "😐" to Color(0xFF9E9E9E)
+    }
+    
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = color.copy(alpha = 0.15f)
+    ) {
+        Text(
+            text = emoji,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            fontSize = 20.sp
+        )
+    }
+}
+
+@Composable
+fun LoadingContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Skeleton cards
+        repeat(5) {
+            SkeletonCard()
+        }
+    }
+}
+
+@Composable
+fun SkeletonCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.4f)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.25f)
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
             )
         }
     }
 }
 
 @Composable
+fun EmptyFeedState(onCreatePost: () -> Unit, onExplore: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Article,
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colorScheme.outline
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Text(
+            text = "Your feed is empty",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = "Follow some people or create your first post to get started!",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Button(
+            onClick = onExplore,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Explore, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Discover People")
+        }
+    }
+}
+
+// ============== POST CARD ==============
+
+@Composable
 fun PostCard(post: PostDto, onLike: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
+            // Author row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                // Avatar
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.secondary
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = post.authorName.firstOrNull()?.uppercase() ?: "?",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = post.authorName,
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = "@${post.authorHandle}",
@@ -363,32 +787,148 @@ fun PostCard(post: PostDto, onLike: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                IconButton(onClick = { /* More options */ }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More")
+                
+                // More options
+                IconButton(onClick = { /* Show options */ }) {
+                    Icon(
+                        Icons.Default.MoreHoriz,
+                        contentDescription = "More",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Post content
             Text(
                 text = post.content,
                 style = MaterialTheme.typography.bodyLarge
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onLike) {
-                    Icon(Icons.Default.Favorite, contentDescription = "Like", modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("${post.likeCount}")
+                // Like button
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onLike) {
+                        Icon(
+                            Icons.Default.FavoriteBorder,
+                            contentDescription = "Like",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = "${post.likeCount}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                TextButton(onClick = { /* Comment */ }) {
-                    Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Comment", modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("${post.commentCount}")
+                
+                // Comment button
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { /* Open comments */ }) {
+                        Icon(
+                            Icons.Default.ChatBubbleOutline,
+                            contentDescription = "Comment",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = "${post.commentCount}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                TextButton(onClick = { /* Share */ }) {
-                    Icon(Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(20.dp))
+                
+                // Share button
+                IconButton(onClick = { /* Share */ }) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = "Share",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ============== EXPLORE SCREEN ==============
+
+@Composable
+fun ExploreScreen(viewModel: MainViewModel) {
+    val npcs = viewModel.npcs
+    val isLoading = viewModel.isLoading
+    var searchQuery by remember { mutableStateOf("") }
+    
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Search bar
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search people...") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null)
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(24.dp)
+            )
+        }
+        
+        // Section header
+        item {
+            Text(
+                text = "People in this world",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        
+        if (isLoading && npcs.isEmpty()) {
+            items(5) {
+                SkeletonNPCCard()
+            }
+        } else {
+            val filteredNPCs = if (searchQuery.isBlank()) {
+                npcs
+            } else {
+                npcs.filter { 
+                    it.displayName.contains(searchQuery, ignoreCase = true) ||
+                    it.handle.contains(searchQuery, ignoreCase = true) ||
+                    it.bio?.contains(searchQuery, ignoreCase = true) == true
+                }
+            }
+            
+            if (filteredNPCs.isEmpty()) {
+                item {
+                    EmptySearchState(query = searchQuery)
+                }
+            } else {
+                items(filteredNPCs, key = { it.id }) { npc ->
+                    NPCCard(
+                        npc = npc,
+                        onFollow = { viewModel.followNpc(npc.id) },
+                        onSelect = { viewModel.selectNpc(npc) }
+                    )
                 }
             }
         }
@@ -396,36 +936,65 @@ fun PostCard(post: PostDto, onLike: () -> Unit) {
 }
 
 @Composable
-fun ExploreScreen(viewModel: MainViewModel) {
-    val npcs = viewModel.npcs
-    val stats = viewModel.stats
-    
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text(
-                text = "Explore NPCs",
-                style = MaterialTheme.typography.headlineMedium
-            )
-            stats?.let { s ->
-                Text(
-                    text = "${s.counts.npcs} NPCs, ${s.counts.posts} posts, ${s.counts.communities} communities",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+fun SkeletonNPCCard() {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.4f)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.25f)
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .width(80.dp)
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 )
             }
         }
-        
-        items(npcs) { npc ->
-            NPCCard(
-                npc = npc,
-                onFollow = { viewModel.followNpc(npc.id) },
-                onSelect = { viewModel.selectNpc(npc) }
-            )
-        }
+    }
+}
+
+@Composable
+fun EmptySearchState(query: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.SearchOff,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.outline
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "No results for \"$query\"",
+            style = MaterialTheme.typography.bodyLarge
+        )
     }
 }
 
@@ -433,171 +1002,281 @@ fun ExploreScreen(viewModel: MainViewModel) {
 fun NPCCard(npc: NPCDto, onFollow: () -> Unit, onSelect: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onSelect
+        onClick = onSelect,
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                // Avatar
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.tertiary
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = npc.displayName,
-                        style = MaterialTheme.typography.titleMedium
+                        text = npc.displayName.firstOrNull()?.uppercase() ?: "?",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Bold
                     )
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = npc.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        MoodBadge(mood = npc.mood?.primaryMood ?: "neutral")
+                    }
                     Text(
                         text = "@${npc.handle}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Button(onClick = onFollow) {
+                
+                FilledTonalButton(onClick = onFollow) {
                     Text("Follow")
                 }
             }
             
             npc.bio?.let { bio ->
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = bio,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            npc.mood?.let { mood ->
-                Text(
-                    text = "Mood: ${mood.primaryMood}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            
-            npc.personality?.let { personality ->
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Extroversion: ${String.format("%.0f", personality.extroversion * 100)}%",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            
-            npc.interests?.take(3)?.let { interests ->
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Interests: ${interests.joinToString(", ") { it.topic }}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            npc.interests?.take(4)?.let { interests ->
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    interests.forEach { interest ->
+                        SuggestionChip(
+                            onClick = { },
+                            label = {
+                                Text(
+                                    text = interest.topic,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
+// ============== CREATE POST SCREEN ==============
+
 @Composable
 fun CreatePostScreen(viewModel: MainViewModel) {
     var postContent by remember { mutableStateOf("") }
+    val isLoading = viewModel.isLoading
+    val selectedNpc = viewModel.selectedNpc
+    var showSuccessMessage by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(showSuccessMessage) {
+        if (showSuccessMessage) {
+            kotlinx.coroutines.delay(2000)
+            showSuccessMessage = false
+            postContent = ""
+        }
+    }
     
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(
-            text = "Create Post",
-            style = MaterialTheme.typography.headlineMedium
-        )
-        
-        viewModel.selectedNpc?.let { npc ->
-            Text(
-                text = "Posting as ${npc.displayName}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        // User context
+        selectedNpc?.let { npc ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = npc.displayName.firstOrNull()?.uppercase() ?: "?",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Posting as",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = npc.displayName,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
-        
+        // Post input
         OutlinedTextField(
             value = postContent,
-            onValueChange = { postContent = it },
+            onValueChange = { 
+                if (it.length <= 500) { // Character limit
+                    postContent = it
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp),
-            placeholder = { Text("What's happening in the synthetic world?") },
-            maxLines = 10
+                .weight(1f),
+            placeholder = { 
+                Text("What's on your mind?") 
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+        
+        // Character count
+        Text(
+            text = "${postContent.length}/500",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (postContent.length > 450) 
+                MaterialTheme.colorScheme.error 
+            else 
+                MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.End)
         )
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        Button(
-            onClick = {
-                if (postContent.isNotBlank()) {
-                    viewModel.createPost(postContent)
-                    postContent = ""
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = postContent.isNotBlank()
-        ) {
-            Icon(Icons.Default.Send, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Post")
-        }
-    }
-}
-
-@Composable
-fun MessagesScreen(viewModel: MainViewModel) {
-    val npcs = viewModel.npcs
-    val selectedNpc = viewModel.selectedNpc
-    
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        item {
-            Text(
-                text = "Messages",
-                style = MaterialTheme.typography.headlineMedium
-            )
-            Text(
-                text = "Start a conversation with an NPC",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        
-        items(npcs.filter { it.id != selectedNpc?.id }) { npc ->
+        // Success message
+        AnimatedVisibility(visible = showSuccessMessage) {
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { /* Open chat */ }
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        Icons.Default.Person,
+                        Icons.Default.CheckCircle,
                         contentDescription = null,
-                        modifier = Modifier.size(40.dp)
+                        tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = npc.displayName,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = "@${npc.handle}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text("Post shared successfully!")
+                }
+            }
+        }
+        
+        // Post button
+        Button(
+            onClick = {
+                if (postContent.isNotBlank()) {
+                    viewModel.createPost(postContent)
+                    showSuccessMessage = true
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            enabled = postContent.isNotBlank() && !isLoading,
+            shape = RoundedCornerShape(28.dp)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Icon(Icons.Default.Send, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Share Post", fontSize = 16.sp)
+            }
+        }
+    }
+}
+
+// ============== MESSAGES SCREEN ==============
+
+@Composable
+fun MessagesScreen(viewModel: MainViewModel) {
+    val npcs = viewModel.npcs
+    val selectedNpc = viewModel.selectedNpc
+    var selectedConversation by remember { mutableStateOf<NPCDto?>(null) }
+    
+    if (selectedConversation != null) {
+        ChatScreen(
+            recipient = selectedConversation!!,
+            onBack = { selectedConversation = null }
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                Text(
+                    text = "Messages",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Start a conversation with someone",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            
+            val otherNPCs = npcs.filter { it.id != selectedNpc?.id }
+            
+            if (otherNPCs.isEmpty()) {
+                item {
+                    EmptyMessagesState()
+                }
+            } else {
+                items(otherNPCs, key = { it.id }) { npc ->
+                    ConversationPreviewCard(
+                        npc = npc,
+                        onClick = { selectedConversation = npc }
+                    )
                 }
             }
         }
@@ -605,135 +1284,554 @@ fun MessagesScreen(viewModel: MainViewModel) {
 }
 
 @Composable
+fun ConversationPreviewCard(npc: NPCDto, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = npc.displayName.firstOrNull()?.uppercase() ?: "?",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = npc.displayName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "@${npc.handle}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun EmptyMessagesState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.Message,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.outline
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "No conversations yet",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            text = "Start chatting with someone from Explore!",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+// ============== CHAT SCREEN ==============
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatScreen(recipient: NPCDto, onBack: () -> Unit) {
+    var messageText by remember { mutableStateOf("") }
+    
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Chat header
+        TopAppBar(
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = recipient.displayName.firstOrNull()?.uppercase() ?: "?",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = recipient.displayName,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "@${recipient.handle}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                }
+            }
+        )
+        
+        // Chat messages area
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.ChatBubbleOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Start the conversation!",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
+        // Message input
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shadowElevation = 8.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = messageText,
+                    onValueChange = { messageText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Type a message...") },
+                    shape = RoundedCornerShape(24.dp),
+                    maxLines = 3
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                FilledIconButton(
+                    onClick = { 
+                        if (messageText.isNotBlank()) {
+                            // Would send message
+                            messageText = ""
+                        }
+                    },
+                    enabled = messageText.isNotBlank()
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = "Send")
+                }
+            }
+        }
+    }
+}
+
+// ============== PROFILE SCREEN ==============
+
+@Composable
 fun ProfileScreen(viewModel: MainViewModel) {
     val selectedNpc = viewModel.selectedNpc
     val stats = viewModel.stats
     val world = viewModel.world
+    val isLoading = viewModel.isLoading
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Profile",
-            style = MaterialTheme.typography.headlineMedium
-        )
-        
-        selectedNpc?.let { npc ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+        // Profile header
+        item {
+            selectedNpc?.let { npc ->
+                ProfileHeader(npc = npc)
+            } ?: Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = npc.displayName,
-                        style = MaterialTheme.typography.headlineSmall
+                if (isLoading) {
+                    CircularProgressIndicator()
+                } else {
+                    Text("No profile selected")
+                }
+            }
+        }
+        
+        // Mood card
+        selectedNpc?.mood?.let { mood ->
+            item {
+                MoodCard(mood = mood)
+            }
+        }
+        
+        // Interests
+        selectedNpc?.interests?.let { interests ->
+            if (interests.isNotEmpty()) {
+                item {
+                    InterestsCard(interests = interests)
+                }
+            }
+        }
+        
+        // World activity
+        item {
+            ActivityCard(
+                stats = stats,
+                world = world,
+                posts = viewModel.posts.filter { it.authorId == selectedNpc?.id }
+            )
+        }
+        
+        // Switch profile section
+        item {
+            SwitchProfileCard(
+                currentNpc = selectedNpc,
+                allNpcs = viewModel.npcs,
+                onSelect = { viewModel.selectNpc(it) }
+            )
+        }
+    }
+}
+
+@Composable
+fun ProfileHeader(npc: NPCDto) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        ),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Large avatar
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.tertiary
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = npc.displayName.firstOrNull()?.uppercase() ?: "?",
+                    style = MaterialTheme.typography.displayMedium,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = npc.displayName,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Text(
+                text = "@${npc.handle}",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            npc.bio?.let { bio ->
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = bio,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MoodCard(mood: MoodDto) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Current Mood",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                MoodIndicator(label = "Happy", value = mood.happiness, emoji = "😊")
+                MoodIndicator(label = "Excited", value = mood.excitement, emoji = "🎉")
+                MoodIndicator(label = "Calm", value = 1.0 - mood.anxiety, emoji = "😌")
+            }
+        }
+    }
+}
+
+@Composable
+fun MoodIndicator(label: String, value: Double, emoji: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = emoji, fontSize = 24.sp)
+        Text(
+            text = "${(value * 100).toInt()}%",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun InterestsCard(interests: List<InterestDto>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Interests",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                interests.forEach { interest ->
+                    SuggestionChip(
+                        onClick = { },
+                        label = { Text(interest.topic) }
                     )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun FlowRow(
+    horizontalArrangement: Arrangement.Horizontal,
+    verticalArrangement: Arrangement.Vertical,
+    content: @Composable () -> Unit
+) {
+    // Simple implementation - in production would use proper FlowRow
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = horizontalArrangement,
+        verticalArrangement = verticalArrangement
+    ) {
+        content()
+    }
+}
+
+@Composable
+fun ActivityCard(
+    stats: SimulationStatsDto?,
+    world: WorldDto?,
+    posts: List<PostDto>
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Your Activity",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                StatItem(value = "${posts.size}", label = "Posts")
+                StatItem(value = "${posts.sumOf { it.likeCount }}", label = "Likes")
+                StatItem(value = "${posts.sumOf { it.commentCount }}", label = "Comments")
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // World status
+            world?.let { w ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (w.isPaused) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = if (w.isPaused) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "@${npc.handle}",
+                        text = if (w.isPaused) "World is paused" else "World is active",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    npc.bio?.let {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = it)
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            npc.mood?.let { mood ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Mood Status",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text("Primary: ${mood.primaryMood}")
-                        Text("Happiness: ${String.format("%.0f", mood.happiness * 100)}%")
-                        Text("Excitement: ${String.format("%.0f", mood.excitement * 100)}%")
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Personality",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    npc.personality?.let { p ->
-                        Text("Extroversion: ${String.format("%.0f", p.extroversion * 100)}%")
-                        Text("Agreeableness: ${String.format("%.0f", p.agreeableness * 100)}%")
-                        Text("Neuroticism: ${String.format("%.0f", p.neuroticism * 100)}%")
-                        Text("Humor: ${String.format("%.0f", p.humor * 100)}%")
-                    }
                 }
             }
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Simulation Controls
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Simulation Control",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                
-                world?.let { w ->
-                    Text("Status: ${if (w.isPaused) "PAUSED" else "Running"}")
-                    Text("World Time: ${w.currentTime}")
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
+    }
+}
+
+@Composable
+fun StatItem(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun SwitchProfileCard(
+    currentNpc: NPCDto?,
+    allNpcs: List<NPCDto>,
+    onSelect: (NPCDto) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Switch Profile",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            Text(
+                text = "Currently viewing as ${currentNpc?.displayName ?: "Unknown"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Show a few options to switch
+            allNpcs.take(5).forEach { npc ->
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Button(
-                        onClick = { viewModel.togglePause() },
-                        colors = if (world?.isPaused == true) 
-                            ButtonDefaults.buttonColors() 
-                        else 
-                            ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                    ) {
-                        Icon(Icons.Default.Pause, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (world?.isPaused == true) "Resume" else "Pause")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = npc.displayName.firstOrNull()?.uppercase() ?: "?",
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = npc.displayName,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                     
-                    Button(onClick = { viewModel.advanceTime(60.0) }) {
-                        Icon(Icons.Default.SkipNext, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("+1 Hour")
+                    if (npc.id == currentNpc?.id) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Current",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        TextButton(onClick = { onSelect(npc) }) {
+                            Text("Switch")
+                        }
                     }
                 }
             }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Stats
-        stats?.let { s ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "World Statistics",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text("NPCs: ${s.counts.npcs}")
-                    Text("Posts: ${s.counts.posts}")
-                    Text("Communities: ${s.counts.communities}")
-                    Text("Relationships: ${s.counts.relationships}")
-                    Text("Total Likes: ${s.engagement.totalLikes}")
-                    Text("Total Comments: ${s.engagement.totalComments}")
+            
+            if (allNpcs.size > 5) {
+                TextButton(onClick = { /* Show all in explore */ }) {
+                    Text("See all ${allNpcs.size} profiles")
                 }
             }
         }

@@ -194,15 +194,15 @@ fun CommunityDetailScreen(
                                     .padding(16.dp),
                                 horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
-                                StatItem(
+                                CommunityStatItem(
                                     value = "${community.memberCount}",
                                     label = "Members"
                                 )
-                                StatItem(
+                                CommunityStatItem(
                                     value = "${viewModel.posts.size}",
                                     label = "Posts"
                                 )
-                                StatItem(
+                                CommunityStatItem(
                                     value = "${(community.popularity * 100).toInt()}%",
                                     label = "Popularity"
                                 )
@@ -246,7 +246,7 @@ fun CommunityDetailScreen(
                         }
                     } else {
                         items(viewModel.posts) { post ->
-                            PostCard(
+                            CommunityPostCard(
                                 post = post,
                                 onClick = { onPostClick(post) }
                             )
@@ -363,7 +363,7 @@ fun CommunityHeader(
 }
 
 @Composable
-fun StatItem(
+fun CommunityStatItem(
     value: String,
     label: String
 ) {
@@ -382,7 +382,7 @@ fun StatItem(
 }
 
 @Composable
-fun PostCard(
+fun CommunityPostCard(
     post: PostDto,
     onClick: () -> Unit
 ) {
